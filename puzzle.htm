@@ -1,0 +1,84 @@
+<html>
+  <head>
+    <title>GAME</title>
+    <style>
+      html {
+        background :black;
+      }
+      div.board {
+        width : 60%;
+        background : white;
+        aspect-ratio: 1 / 1;
+        display: grid;
+      }
+      div.square {
+        border : 1pt solid black;
+      }
+      div.covered {
+        background : grey !important;
+      }
+    </style>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script>
+      // stolen from the internet
+      function shuffle(array) {
+        let currentIndex = array.length;
+
+        // While there remain elements to shuffle...
+        while (currentIndex != 0) {
+
+          // Pick a remaining element...
+          let randomIndex = Math.floor(Math.random() * currentIndex);
+          currentIndex--;
+
+          // And swap it with the current element.
+          [array[currentIndex], array[randomIndex]] = [
+            array[randomIndex], array[currentIndex]];
+        }
+      }
+
+      $(document).ready(function() {
+        const colours = ['white', 'lightblue', 'lightcoral', 'orange', 'red', 'yellow', 'violet', 'lightgreen', 'blue', 'green', 'blueviolet', 'lightpink', 'skyblue'];
+        const size = { x:6, y:4 };
+        let order = colours.slice(0, (size.x*size.y)/2); order = order.concat(order); shuffle(order); console.log(order);
+        const $board = $('div.board').css('grid-template', 'repeat('+size.x+', 1fr) / repeat('+size.y+', 1fr)') ;
+        let idx = 0, play = true;
+        for (let y = 0; y < size.y; y++) {
+          for (let x = 0; x < size.x; x++) {
+            $('<div/>').prop('colour', order[idx]).prop('id', idx).addClass('square covered').css('background', order[idx++]).appendTo($board);
+          }
+        }
+        $('div.square.covered').click(function(it){
+          console.log(it);
+          let $it = $(it.target);
+          if (play && $it.hasClass('covered')) {
+            $it.toggleClass('covered').toggleClass('peek');
+            let $peek = $('div.peek', $board);
+            if ($peek.length == 2) {
+              play = false;
+              setTimeout(function() {
+                $peek.fadeOut(200, function() {
+                  $peek.fadeIn(200, function() {
+                    if (play) return;
+                    let selected = new Set($peek.map(function(i, it){return $(it).prop('colour')}));
+                    console.log(selected);
+                    if (selected.size > 1) {
+                      $peek.addClass('covered');
+                    } else {
+                      $peek.addClass('uncovered');
+                    }
+                    $peek.removeClass('peek');
+                    play = true;
+                  })
+                })
+              }, 200);
+            }
+          }
+        });
+      });
+    </script>
+  </head>
+  <body>
+    <div class='board'/>
+  </body>
+</html>
