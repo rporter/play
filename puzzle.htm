@@ -8,6 +8,7 @@
       }
       div.board {
         width : 60%;
+        margin : auto;
         background : white;
         aspect-ratio: 1 / 1;
         display: grid;
@@ -38,32 +39,82 @@
         }
       }
 
-      $(document).ready(function() {
-        const colours = ['white', 'lightblue', 'lightcoral', 'orange', 'red', 'yellow', 'violet', 'lightgreen', 'blue', 'green', 'blueviolet', 'lightpink', 'skyblue'];
-        const size = { x:6, y:4 };
-        let order = colours.slice(0, (size.x*size.y)/2); order = order.concat(order); shuffle(order); console.log(order);
-        const $board = $('div.board').css('grid-template', 'repeat('+size.x+', 1fr) / repeat('+size.y+', 1fr)') ;
-        let idx = 0, play = true;
-        for (let y = 0; y < size.y; y++) {
-          for (let x = 0; x < size.x; x++) {
-            $('<div/>').prop('colour', order[idx]).prop('id', idx).addClass('square covered').css('background', order[idx++]).appendTo($board);
+      class board {
+
+        static #colours = ['white', 'lightblue', 'lightcoral', 'orange', 'red', 'yellow', 'violet', 'lightgreen', 'blue', 'green', 'blueviolet', 'lightpink', 'skyblue'];
+
+        constructor(x=4, y=4) {
+          this.x = x;
+          this.y = y;
+          this.attempts = {
+            attempts : 0,
+            fails : 0,
+            matches : 0
+          }
+          this.order = board.#colours.slice(0, this.size/2); this.order = this.order.concat(this.order); shuffle(this.order);
+          console.debug(this.order);
+        }
+
+        get size() {
+          return this.x * this.y;
+        }
+
+        *squares() {
+          for (let y = 0; y < this.y; y++) {
+            for (let x = 0; x < this.x; x++) {
+              let idx = y*this.x + x;
+              yield {x:x, y:y, idx:idx, colour:this.order[idx]};
+            }
           }
         }
+
+        result(selected) {
+          let unique = (new Set(selected)).size,
+              count = selected.length,
+              fail = unique > 1,
+              more = !fail && (count < 2);
+
+          this.attempts.attempts += !more;
+          this.attempts.fails += fail;
+          this.attempts.matches += !more && !fail;
+
+          return {
+              attempts : this.attempts.attempts,
+              fails : this.attempts.fails,
+              matches : this.attempts.matches,
+              more : more,
+              fail : fail
+            }
+
+        }
+
+      }
+
+
+      $(document).ready(function() {
+
+        const size = new board(),
+              $board = $('div.board').css('grid-template', 'repeat('+size.x+', 1fr) / repeat('+size.y+', 1fr)') ;
+        let play = true;
+
+        for (let square of size.squares()) {
+          $('<div/>').prop('colour', square.colour).prop('id', square.idx).addClass('square covered').css('background', square.colour).appendTo($board);
+        }
+
         $('div.square.covered').click(function(it){
-          console.log(it);
           let $it = $(it.target);
           if (play && $it.hasClass('covered')) {
             $it.toggleClass('covered').toggleClass('peek');
-            let $peek = $('div.peek', $board);
-            if ($peek.length == 2) {
+            let $peek = $('div.peek', $board),
+                status = size.result($peek.map(function(i, it){return $(it).prop('colour')}));
+            console.log(status);
+            if (!status.more) {
               play = false;
               setTimeout(function() {
                 $peek.fadeOut(200, function() {
                   $peek.fadeIn(200, function() {
                     if (play) return;
-                    let selected = new Set($peek.map(function(i, it){return $(it).prop('colour')}));
-                    console.log(selected);
-                    if (selected.size > 1) {
+                    if (status.fail) {
                       $peek.addClass('covered');
                     } else {
                       $peek.addClass('uncovered');
