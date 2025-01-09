@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>GAME</title>
+    <title>Match the Colours</title>
     <style>
       html {
         background :black;
@@ -39,11 +39,11 @@
         }
       }
 
-      class board {
+      class Board {
 
-        static #colours = ['white', 'lightblue', 'lightcoral', 'orange', 'red', 'yellow', 'violet', 'lightgreen', 'blue', 'green', 'blueviolet', 'lightpink', 'skyblue'];
+        static #colours = ['white', 'lightseagreen', 'lightcoral', 'orange', 'red', 'yellow', 'violet', 'lightgreen', 'blue', 'green', 'blueviolet', 'lightpink', 'skyblue'];
 
-        constructor(x=4, y=4) {
+        constructor({x=4, y=4} = {}) {
           this.x = x;
           this.y = y;
           this.attempts = {
@@ -51,8 +51,20 @@
             fails : 0,
             matches : 0
           }
-          this.order = board.#colours.slice(0, this.size/2); this.order = this.order.concat(this.order); shuffle(this.order);
-          console.debug(this.order);
+          // use min(floor(sz/2), len(cols)) as pallette, shuffle pallette. multiply pallette * ceil(sz/len(pallette)), slice and shuffle.
+          let pallette = Board.#colours.slice(0, Math.min(Math.floor(this.size/2), Board.#colours.length));
+          shuffle(pallette);
+          while (pallette.length < this.size) pallette = pallette.concat(pallette);
+          this.order = pallette.slice(0, this.size);
+          shuffle(this.order);
+          this.occurs = new Map();
+          for (const c of this.order) {
+            if (c in this.occurs)
+              this.occurs[c]++;
+            else
+              this.occurs[c]=1;
+          }
+          console.log(this.order, this.occurs);
         }
 
         get size() {
@@ -72,7 +84,7 @@
           let unique = (new Set(selected)).size,
               count = selected.length,
               fail = unique > 1,
-              more = !fail && (count < 2);
+              more = !fail && (count < this.occurs[selected[0]]);
 
           this.attempts.attempts += !more;
           this.attempts.fails += fail;
@@ -93,12 +105,26 @@
 
       $(document).ready(function() {
 
-        const size = new board(),
-              $board = $('div.board').css('grid-template', 'repeat('+size.x+', 1fr) / repeat('+size.y+', 1fr)') ;
+        const
+          url = new URL(window.location.href),
+          hparams = url.searchParams,
+          params = {
+          };
+
+        if (hparams.has('x')) params.x = Number(hparams.get('x'));
+        if (hparams.has('y')) params.y = Number(hparams.get('y'));
+        console.log(params);
+
+        const board = new (Function.prototype.bind.apply(Board, [null, params, ])),
+              $board = $('div.board').css('grid-template', 'repeat('+board.y+', 1fr) / repeat('+board.x+', 1fr)') ;
         let play = true;
 
-        for (let square of size.squares()) {
-          $('<div/>').prop('colour', square.colour).prop('id', square.idx).addClass('square covered').css('background', square.colour).appendTo($board);
+        for (let square of board.squares()) {
+          $('<div/>').prop('colour', square.colour)
+                     .prop('id', square.idx)
+                     .addClass('square covered')
+                     .css('background', square.colour)
+                     .appendTo($board);
         }
 
         $('div.square.covered').click(function(it){
@@ -106,7 +132,7 @@
           if (play && $it.hasClass('covered')) {
             $it.toggleClass('covered').toggleClass('peek');
             let $peek = $('div.peek', $board),
-                status = size.result($peek.map(function(i, it){return $(it).prop('colour')}));
+                status = board.result($peek.map(function(i, it){return $(it).prop('colour')}));
             console.log(status);
             if (!status.more) {
               play = false;
