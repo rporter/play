@@ -54,7 +54,9 @@
           // use min(floor(sz/2), len(cols)) as pallette, shuffle pallette. multiply pallette * ceil(sz/len(pallette)), slice and shuffle.
           let pallette = Board.#colours.slice(0, Math.min(Math.floor(this.size/2), Board.#colours.length));
           shuffle(pallette);
-          while (pallette.length < this.size) pallette = pallette.concat(pallette);
+          while (pallette.length < this.size) {
+            pallette = pallette.concat(pallette);
+          }
           this.order = pallette.slice(0, this.size);
           shuffle(this.order);
           this.occurs = new Map();
@@ -111,8 +113,19 @@
           params = {
           };
 
-        if (hparams.has('x')) params.x = Number(hparams.get('x'));
-        if (hparams.has('y')) params.y = Number(hparams.get('y'));
+        function setparam(param) {
+          if (hparams.has(param)) {
+            const raw = hparams.get(param),
+                  val = Number(raw);
+            if (0 < val <= 16) {
+              Object.set(params, param) = val;
+            } else {
+              alert('Param ' + param + ' : value "' + raw + '" out of range');
+          }
+        }
+
+        setparam('x');
+        setparam('y');
         console.log(params);
 
         const board = new (Function.prototype.bind.apply(Board, [null, params, ])),
@@ -139,7 +152,9 @@
               setTimeout(function() {
                 $peek.fadeOut(200, function() {
                   $peek.fadeIn(200, function() {
-                    if (play) return;
+                    if (play) {
+                      return;
+                    }
                     if (status.fail) {
                       $peek.addClass('covered');
                     } else {
