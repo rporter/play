@@ -117,7 +117,7 @@
           if (hparams.has(param)) {
             const raw = hparams.get(param),
                   val = Number(raw);
-            if (0 < val <= 16) {
+            if (0 < val && val <= 16) {
               params[param] = val;
             } else {
               alert('Param ' + param + ' : value "' + raw + '" out of range');
