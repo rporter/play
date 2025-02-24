@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Match the Colours</title>
+    <style>
+      html {
+        background :black;
+      }
+      div.board {
+        width : 60%;
+        margin : auto;
+        background : black;
+        display: grid;
+      }
+      div.square {
+        border : 1pt outset grey;
+        aspect-ratio: 1 / 1;
+      }
+      div.square.right {
+        border-right : 1pt solid grey;
+      }
+      div.square.bottom {
+        border-bottom : 1pt solid grey;
+      }
+    </style>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script>
+
+      class Tetromino {
+
+        static #pieces = {
+          cyan   : [[[0,-1],[0,0],[0,1],[0,2]], [[-1,0],[0,0],[1,0],[2,0]], [[0,-2],[0,-1],[0,0],[0,1]], [[-2,0],[-1,0],[0,0],[1,0]]],
+          purple : [[[0,-1],[0,0],[1,0],[0,1]], [[-1,0],[0,0],[0,1],[1,0]], [[0,-1],[0,0],[-1,0],[0,1]], [[-1,0],[0,0],[0,-1],[1,0]]],
+          green  : [[[0,-1],[0,0],[1,0],[1,1]], [[-1,0],[0,0],[0,-1],[1,-1]], [[-1,-1],[-1,0],[0,0],[0,1]], [[-1,1],[0,1],[0,0],[1,0]]],
+          red    : [[[1,-1],[1,0],[0,0],[0,1]], [[-1,-1],[0,-1,0],[0,0],[1,0]], [[-1,1],[-1,0],[0,0],[0,-1]], [[-1,0],[0,0],[0,1],[1,1]]],
+          yellow : [[[0,0],[0,1],[1,0],[1,1]],]
+        };
+
+	constructor(board, piece) {
+          this.board = board;
+          this.piece = piece;
+          this.theta = 0;
+          this.x = board.size.x/2;
+          this.y = -1-Math.max.apply(null, this.squares.map(p => p[1]));
+          console.log(this)
+        }
+
+        get colour() {
+          return Object.keys(Tetromino.#pieces)[this.piece];
+        }
+        get orientations() {
+          return Object.values(Tetromino.#pieces)[this.piece];
+        }
+
+        #_squares(theta) {
+          return this.orientations[Math.abs(theta % this.orientations.length)];
+        }
+        get squares() {
+          return this.#_squares(this.theta);
+        }
+
+        translate(vector) {
+          if ('x' in vector) this.x += vector.x;
+          if ('y' in vector) this.y += vector.y;
+          if ('theta' in vector) this.theta += vector.theta;
+        }
+
+        cheat() {
+          this.draw({rm:true});
+          this.piece = (this.piece+1)%Object.keys(Tetromino.#pieces).length;
+          this.draw();
+        }
+
+        attempt(vector) {
+          this.draw({rm:true});
+          let attempt = this.location(vector); console.log(attempt);
+          if (attempt.success) {
+            this.translate(vector);
+          }
+          this.draw();
+          return attempt.success;
+        }
+
+        drop() {
+          this.y += 1;
+        }
+        left() {
+          return this.attempt({x:-1});
+        }
+        right() {
+          return this.attempt({x:1});
+        }
+        down() {
+          return this.attempt({y:1});
+        }
+
+        rotate(left=false) {
+          return this.attempt({theta:left?1:-1});
+        }
+
+	location(offset = {x:0, y:0, theta:0}) {
+          // return the board squares where the piece is
+          let
+            move = { 
+              x : this.x + (('x' in offset)?offset.x:0),
+              y : this.y + (('y' in offset)?offset.y:0),
+              theta : this.theta + (('theta' in offset)?offset.theta:0)
+            },
+            squares = this.#_squares(move.theta).map(([px, py]) => this.board.square(move.x+px, move.y+py)),
+            result = {
+              top : 0,
+              bottom : 0,
+              left : 0,
+              right : 0,
+              collision : 0,
+              good : 0,
+              squares : squares.map(l=>l[1])
+            };
+            for (let square of squares) {
+              if (square[0] in result) result[square[0]]++;
+            }
+            result['off'] = result.bottom + result.left + result.right + result.collision;
+            result['success'] = result.off < 1;
+            return result;
+        }
+
+        draw(rm=false) {
+          for (let square of this.location().squares) {
+            if (square instanceof jQuery) {
+              square.css('background-color', rm?'':this.colour);
+              if (rm) {
+                square.removeClass('occupied');
+              } else {
+                square.addClass('occupied');
+              }
+            }
+          } 
+        }
+
+        static next(board, force=false) {
+          let
+            keys  = Object.keys(this.#pieces),
+            idx   = Math.floor(Math.random()*keys.length),
+            piece = force || keys[idx];
+          return new Tetromino(board, idx);
+          return new Tetromino(board, piece, this.#pieces[piece]);
+        }
+
+
+      }
+
+
+      class Board {
+
+        constructor($board, {x=10, y=20} = {}) {
+          this.$board = $board;
+          this.size = {x:x, y:y};
+        }
+
+        square(x, y) {
+          if (y<0)            return ['top', undefined];
+          if (y>=this.size.y) return ['bottom', undefined];
+          if (x<0)            return ['left', undefined];
+          if (x>=this.size.x) return ['right', undefined];
+          let 
+            idx = x + this.size.x * y,
+            $div = $('div.square:nth('+idx+')', this.$board);
+          if ($div.hasClass('occupied')) return ['collision', $div]
+          return ['good', $div];
+        }
+
+        check() {
+          let y = this.size.y-1;
+          while ( y>=0) {
+            let $row = $(':nth-child(n+'+((y*this.size.x)+1)+'):nth-child(-n+'+((y+1)*this.size.x)+')', this.$board);
+            if ($row.filter('.occupied').length == this.size.x) {
+              $row.remove();
+              for (let x = 0; x < this.size.x; x++) {
+                $('<div/>')
+                     .addClass('square')
+                     .prependTo(this.$board);
+              }
+            } else {
+              y--;
+            }
+          }
+        }
+
+        *squares() {
+          for (let y = 0; y < this.size.y; y++) {
+            for (let x = 0; x < this.size.x; x++) {
+              let 
+                idx = y*this.size.x + x,
+                side = {/*
+                  top    : y==0,
+                  bottom : y==(this.size.y-1),
+                  left   : x==0,
+                  right  : x==(this.size.x-1)
+                */};
+              yield {x:x, y:y, idx:idx, side:side};
+            }
+          }
+        }
+
+      }
+
+
+      $(document).ready(function() {
+
+        const
+          url = new URL(window.location.href),
+          hparams = url.searchParams,
+          params = {
+          };
+
+        if (hparams.has('x')) params.x = Number(hparams.get('x'));
+        if (hparams.has('y')) params.y = Number(hparams.get('y'));
+        console.log(params);
+
+        const 
+          $board = $('div.board'),
+          board  = new (Function.prototype.bind.apply(Board, [null, $board, params, ]));
+
+        $board.css('grid-template', 'repeat('+board.size.y+', 1fr) / repeat('+board.size.x+', 1fr)');
+
+        var styleTag = $('<style> \
+          div.square:nth-child('+board.size.x+'n) {border-right : 1pt solid grey;} \
+          div.square:nth-child(n+'+(board.size.x*(board.size.y-1)+1)+') {border-bottom : 1pt solid grey;} \
+        </style>');
+        $('html > head').append(styleTag);
+
+
+        for (let square of board.squares()) {
+          let $div = $('<div/>').prop('colour', square.colour)
+                     .prop('id', square.idx)
+                     .addClass('square')
+                     .appendTo($board);
+          for (let side in square.side) {
+            if (square.side[side]) {
+                $div.addClass(side);
+            }
+          }
+        }
+b=board;
+ p = Tetromino.next(board);
+console.log(p.location());
+
+p.y+=7;
+console.log(p.location());
+p.draw();
+
+$(document).keydown(function(e) {
+console.log(e);
+  if (e.key ==  "ArrowLeft") p.left();
+  if (e.key ==  "ArrowRight") p.right();
+  if (e.key ==  "ArrowDown") p.down();
+  if (e.key == 'z') p.rotate();
+  if (e.key == 'x') p.rotate(true);
+  if (e.key == ' ') { p = Tetromino.next(board); b.check(); }
+  if (e.key == 'c') p.cheat();
+
+/*
+left = 37
+up = 38
+right = 39
+down = 40
+*/
+});
+
+
+      });
+    </script>
+  </head>
+  <body>
+    <div class='board'/>
+  </body>
+</html>
