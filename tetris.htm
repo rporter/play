@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Match the Colours</title>
+    <title>Tetris</title>
     <style>
       html {
         background :black;
       }
       div.board {
-        width : 60%;
+        width : 50%;
         margin : auto;
         background : black;
         display: grid;
@@ -29,11 +29,13 @@
       class Tetromino {
 
         static #pieces = {
-          cyan   : [[[0,-1],[0,0],[0,1],[0,2]], [[-1,0],[0,0],[1,0],[2,0]], [[0,-2],[0,-1],[0,0],[0,1]], [[-2,0],[-1,0],[0,0],[1,0]]],
-          purple : [[[0,-1],[0,0],[1,0],[0,1]], [[-1,0],[0,0],[0,1],[1,0]], [[0,-1],[0,0],[-1,0],[0,1]], [[-1,0],[0,0],[0,-1],[1,0]]],
-          green  : [[[0,-1],[0,0],[1,0],[1,1]], [[-1,0],[0,0],[0,-1],[1,-1]], [[-1,-1],[-1,0],[0,0],[0,1]], [[-1,1],[0,1],[0,0],[1,0]]],
-          red    : [[[1,-1],[1,0],[0,0],[0,1]], [[-1,-1],[0,-1,0],[0,0],[1,0]], [[-1,1],[-1,0],[0,0],[0,-1]], [[-1,0],[0,0],[0,1],[1,1]]],
-          yellow : [[[0,0],[0,1],[1,0],[1,1]],]
+          cyan       : [[[0,-1],[0,0],[0,1],[0,2]], [[-1,0],[0,0],[1,0],[2,0]], [[0,-2],[0,-1],[0,0],[0,1]], [[-2,0],[-1,0],[0,0],[1,0]]],
+          red        : [[[0,-1],[0,0],[1,0],[0,1]], [[-1,0],[0,0],[0,1],[1,0]], [[0,-1],[0,0],[-1,0],[0,1]], [[-1,0],[0,0],[0,-1],[1,0]]],
+          lightgreen : [[[0,-1],[0,0],[1,0],[1,1]], [[-1,0],[0,0],[0,-1],[1,-1]], [[-1,-1],[-1,0],[0,0],[0,1]], [[-1,1],[0,1],[0,0],[1,0]]],
+          magenta    : [[[1,-1],[1,0],[0,0],[0,1]], [[-1,-1],[0,-1,0],[0,0],[1,0]], [[-1,1],[-1,0],[0,0],[0,-1]], [[-1,0],[0,0],[0,1],[1,1]]],
+          yellow     : [[[0,0],[0,1],[1,0],[1,1]],],
+          orange     : [[[-1,-1],[0,-1],[0,0],[0,1]],[[1,-1],[1,0],[0,0],[-1,0]], [[0,-1],[0,0],[0,1],[1,1]], [[-1,1],[-1,0],[0,0],[1,0]]],
+          blue       : [[[ 1,-1],[0,-1],[0,0],[0,1]], [[-1,0],[0,0],[1,0],[1,1]], [[-1, 1],[0,-1],[0,0],[0,1]], [[-1,0],[0,0],[1,0],[-1,-1]]]
         };
 
 	constructor(board, piece) {
@@ -43,6 +45,19 @@
           this.x = board.size.x/2;
           this.y = -1-Math.max.apply(null, this.squares.map(p => p[1]));
           console.log(this)
+        }
+
+        copy(offset) {
+          let result = new Tetromino(this.board, ('piece' in offset)?offset.piece:this.piece)
+          result.x = this.x;
+          result.y = this.y;
+          result.theta = this.theta;
+
+console.log('copy', result, this);
+
+result.translate(offset);
+console.log('copy', result);
+return result;
         }
 
         get colour() {
@@ -63,6 +78,7 @@
           if ('x' in vector) this.x += vector.x;
           if ('y' in vector) this.y += vector.y;
           if ('theta' in vector) this.theta += vector.theta;
+          return this;
         }
 
         cheat() {
@@ -73,12 +89,13 @@
 
         attempt(vector) {
           this.draw({rm:true});
-          let attempt = this.location(vector); console.log(attempt);
+          let move = this.copy(vector), attempt = move.location();
+          let result = this; console.log(attempt);
           if (attempt.success) {
-            this.translate(vector);
+            result = move;
           }
-          this.draw();
-          return attempt.success;
+          result.draw();
+          return {result : result, attempt : attempt};
         }
 
         drop() {
@@ -92,6 +109,9 @@
         }
         down() {
           return this.attempt({y:1});
+        }
+        change(dir=1) {
+          return this.attempt({piece:(this.piece+dir)%Object.keys(Tetromino.#pieces).length});
         }
 
         rotate(left=false) {
@@ -251,13 +271,13 @@ p.draw();
 
 $(document).keydown(function(e) {
 console.log(e);
-  if (e.key ==  "ArrowLeft") p.left();
-  if (e.key ==  "ArrowRight") p.right();
-  if (e.key ==  "ArrowDown") p.down();
-  if (e.key == 'z') p.rotate();
-  if (e.key == 'x') p.rotate(true);
+  if (e.key ==  "ArrowLeft") p = p.left().result;
+  if (e.key ==  "ArrowRight") p= p.right().result;
+  if (e.key ==  "ArrowDown") p= p.down().result;
+  if (e.key == 'z') p = p.rotate().result;
+  if (e.key == 'x') p = p.rotate(true).result;
   if (e.key == ' ') { p = Tetromino.next(board); b.check(); }
-  if (e.key == 'c') p.cheat();
+  if (e.key == 'c') p = p.change().result; // p.cheat();
 
 /*
 left = 37
