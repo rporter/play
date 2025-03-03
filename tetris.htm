@@ -7,7 +7,7 @@
         background :black;
       }
       div.board {
-        width : 50%;
+        width : 40%;
         margin : auto;
         background : black;
         display: grid;
@@ -38,7 +38,7 @@
           blue       : [[[ 1,-1],[0,-1],[0,0],[0,1]], [[-1,0],[0,0],[1,0],[1,1]], [[-1, 1],[0,-1],[0,0],[0,1]], [[-1,0],[0,0],[1,0],[-1,-1]]]
         };
 
-	constructor(board, piece) {
+        constructor(board, piece) {
           this.board = board;
           this.piece = piece;
           this.theta = 0;
@@ -52,12 +52,8 @@
           result.x = this.x;
           result.y = this.y;
           result.theta = this.theta;
-
-console.log('copy', result, this);
-
-result.translate(offset);
-console.log('copy', result);
-return result;
+          result.translate(offset);
+          return result;
         }
 
         get colour() {
@@ -81,12 +77,6 @@ return result;
           return this;
         }
 
-        cheat() {
-          this.draw({rm:true});
-          this.piece = (this.piece+1)%Object.keys(Tetromino.#pieces).length;
-          this.draw();
-        }
-
         attempt(vector) {
           this.draw({rm:true});
           let move = this.copy(vector), attempt = move.location();
@@ -98,9 +88,6 @@ return result;
           return {result : result, attempt : attempt};
         }
 
-        drop() {
-          this.y += 1;
-        }
         left() {
           return this.attempt({x:-1});
         }
@@ -113,12 +100,19 @@ return result;
         change(dir=1) {
           return this.attempt({piece:(this.piece+dir)%Object.keys(Tetromino.#pieces).length});
         }
-
         rotate(left=false) {
           return this.attempt({theta:left?1:-1});
         }
+        drop() {
+          let result = this.down(); 
+          result.cnt = 0;
+          if (result.attempt.success) return result;
+          result = {result : Tetromino.next(this.board), cnt : this.board.check()};
+          result.attempt = result.result.location();
+          return result;
+        }
 
-	location(offset = {x:0, y:0, theta:0}) {
+        location(offset = {x:0, y:0, theta:0}) {
           // return the board squares where the piece is
           let
             move = { 
@@ -132,6 +126,7 @@ return result;
               bottom : 0,
               left : 0,
               right : 0,
+              block : 0,
               collision : 0,
               good : 0,
               squares : squares.map(l=>l[1])
@@ -147,11 +142,10 @@ return result;
         draw(rm=false) {
           for (let square of this.location().squares) {
             if (square instanceof jQuery) {
-              square.css('background-color', rm?'':this.colour);
               if (rm) {
-                square.removeClass('occupied');
+                square.css('background-color', '').removeClass('occupied');
               } else {
-                square.addClass('occupied');
+                square.css('background-color', this.colour).addClass('occupied');
               }
             }
           } 
@@ -161,9 +155,8 @@ return result;
           let
             keys  = Object.keys(this.#pieces),
             idx   = Math.floor(Math.random()*keys.length),
-            piece = force || keys[idx];
-          return new Tetromino(board, idx);
-          return new Tetromino(board, piece, this.#pieces[piece]);
+            piece = force || idx;
+          return new Tetromino(board, piece);
         }
 
 
@@ -175,6 +168,22 @@ return result;
         constructor($board, {x=10, y=20} = {}) {
           this.$board = $board;
           this.size = {x:x, y:y};
+          this.style();
+          this.layout();
+        }
+
+        style() {
+          const styleTag = $(`<style>
+            div.square:nth-child(${this.size.x}n) {border-right : 1pt solid grey;}
+            div.square:nth-child(n+${(this.size.x*(this.size.y-1)+1)}) {border-bottom : 1pt solid grey;}
+          </style>`);
+          $('html > head').append(styleTag);
+        }
+        layout() {
+          this.$board.css('grid-template', 'repeat('+this.size.y+', 1fr) / repeat('+this.size.x+', 1fr)');
+          for (let square of this.squares()) {
+            $('<div/>').addClass('square').appendTo(this.$board);
+          }
         }
 
         square(x, y) {
@@ -185,15 +194,18 @@ return result;
           let 
             idx = x + this.size.x * y,
             $div = $('div.square:nth('+idx+')', this.$board);
-          if ($div.hasClass('occupied')) return ['collision', $div]
+          if ($div.hasClass('occupied')) return [(y==0)?'block':'collision', $div]
           return ['good', $div];
         }
 
         check() {
-          let y = this.size.y-1;
-          while ( y>=0) {
+          let 
+            cnt = 0,
+            y = this.size.y-1;
+          while (y>=0) {
             let $row = $(':nth-child(n+'+((y*this.size.x)+1)+'):nth-child(-n+'+((y+1)*this.size.x)+')', this.$board);
             if ($row.filter('.occupied').length == this.size.x) {
+              cnt += 1;
               $row.remove();
               for (let x = 0; x < this.size.x; x++) {
                 $('<div/>')
@@ -204,6 +216,20 @@ return result;
               y--;
             }
           }
+          return cnt;
+        }
+
+        over() {
+          this.$board.append(`<div <div style="
+              position: absolute;
+              align-self: center;
+              color: white;
+              font-family: monospace;
+              font-size: large;
+              width: inherit;
+              text-align: center;
+          ">GAME OVER</div>`)
+
         }
 
         *squares() {
@@ -221,9 +247,46 @@ return result;
             }
           }
         }
-
       }
 
+      class Play {
+      
+        constructor(board) {
+          this.board = board;
+          this.delay = 500;
+          this.piece = Tetromino.next(board);
+          this.playing = true;
+          this.control();
+        }
+
+        loop() { console.log(this);
+            let drop = this.piece.drop(), self=this; console.log(drop);
+            if (drop.attempt.block > 0) {
+              // if it can't be placed without hitting something then it's game over
+              this.playing = false;
+              this.board.over();
+            } else {
+              this.piece = drop.result;
+              setTimeout(() => { console.log(self, this); self.loop() }, this.delay);
+            }
+        }
+
+        control() {
+          let self = this;
+          $(document).keydown(function(e) {
+            console.log(e, this, self);
+            if (!self.playing) return
+            if (e.key ==  "ArrowLeft") self.piece = self.piece.left().result;
+            if (e.key ==  "ArrowRight") self.piece = self.piece.right().result;
+            if (e.key ==  "ArrowDown") self.piece = self.piece.drop().result;
+            if (e.key == 'z') self.piece = self.piece.rotate().result;
+            if (e.key == 'x') self.piece = self.piece.rotate(true).result;
+            if (e.key == ' ') { self.piece = Tetromino.next(board); board.check(); }
+            if (e.key == 'c') self.piece = self.piece.change().result;
+          });
+        }
+
+    }
 
       $(document).ready(function() {
 
@@ -239,55 +302,30 @@ return result;
 
         const 
           $board = $('div.board'),
-          board  = new (Function.prototype.bind.apply(Board, [null, $board, params, ]));
+          board  = new (Function.prototype.bind.apply(Board, [null, $board, params, ])),
+          play = new Play(board);
 
-        $board.css('grid-template', 'repeat('+board.size.y+', 1fr) / repeat('+board.size.x+', 1fr)');
+        play.loop();
 
-        var styleTag = $('<style> \
-          div.square:nth-child('+board.size.x+'n) {border-right : 1pt solid grey;} \
-          div.square:nth-child(n+'+(board.size.x*(board.size.y-1)+1)+') {border-bottom : 1pt solid grey;} \
-        </style>');
-        $('html > head').append(styleTag);
-
-
-        for (let square of board.squares()) {
-          let $div = $('<div/>').prop('colour', square.colour)
-                     .prop('id', square.idx)
-                     .addClass('square')
-                     .appendTo($board);
-          for (let side in square.side) {
-            if (square.side[side]) {
-                $div.addClass(side);
-            }
-          }
-        }
+/*
 b=board;
- p = Tetromino.next(board);
-console.log(p.location());
+p = Tetromino.next(board);
 
 p.y+=7;
-console.log(p.location());
 p.draw();
 
 $(document).keydown(function(e) {
 console.log(e);
   if (e.key ==  "ArrowLeft") p = p.left().result;
-  if (e.key ==  "ArrowRight") p= p.right().result;
-  if (e.key ==  "ArrowDown") p= p.down().result;
+  if (e.key ==  "ArrowRight") p = p.right().result;
+  if (e.key ==  "ArrowDown") p = p.drop().result;
   if (e.key == 'z') p = p.rotate().result;
   if (e.key == 'x') p = p.rotate(true).result;
   if (e.key == ' ') { p = Tetromino.next(board); b.check(); }
-  if (e.key == 'c') p = p.change().result; // p.cheat();
-
-/*
-left = 37
-up = 38
-right = 39
-down = 40
-*/
+  if (e.key == 'c') p = p.change().result;
 });
 
-
+*/
       });
     </script>
   </head>
