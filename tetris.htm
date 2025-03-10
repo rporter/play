@@ -38,13 +38,12 @@
           blue       : [[[ 1,-1],[0,-1],[0,0],[0,1]], [[-1,0],[0,0],[1,0],[1,1]], [[-1, 1],[0,-1],[0,0],[0,1]], [[-1,0],[0,0],[1,0],[-1,-1]]]
         };
 
-        constructor(board, piece) {
+	constructor(board, piece) {
           this.board = board;
           this.piece = piece;
           this.theta = 0;
           this.x = board.size.x/2;
           this.y = -1-Math.max.apply(null, this.squares.map(p => p[1]));
-          console.log(this)
         }
 
         copy(offset) {
@@ -79,13 +78,15 @@
 
         attempt(vector) {
           this.draw({rm:true});
-          let move = this.copy(vector), attempt = move.location();
-          let result = this; console.log(attempt);
+          let
+            move = this.copy(vector),
+            attempt = move.location(),
+            result = this;
           if (attempt.success) {
             result = move;
           }
           result.draw();
-          return {result : result, attempt : attempt};
+          return {result : result, attempt : attempt, last : {}};
         }
 
         left() {
@@ -107,12 +108,12 @@
           let result = this.down(); 
           result.cnt = 0;
           if (result.attempt.success) return result;
-          result = {result : Tetromino.next(this.board), cnt : this.board.check()};
+          result = {result : Tetromino.next(this.board), cnt : this.board.check(), last : result.attempt};
           result.attempt = result.result.location();
           return result;
         }
 
-        location(offset = {x:0, y:0, theta:0}) {
+	location(offset = {x:0, y:0, theta:0}) {
           // return the board squares where the piece is
           let
             move = { 
@@ -251,37 +252,43 @@
 
       class Play {
       
-        constructor(board) {
+        constructor(board, debug=false) {
           this.board = board;
+          this.debug = debug;
           this.delay = 500;
           this.piece = Tetromino.next(board);
           this.playing = true;
           this.control();
         }
 
-        loop() { console.log(this);
-            let drop = this.piece.drop(), self=this; console.log(drop);
-            if (drop.attempt.block > 0) {
-              // if it can't be placed without hitting something then it's game over
-              this.playing = false;
-              this.board.over();
-            } else {
-              this.piece = drop.result;
-              setTimeout(() => { console.log(self, this); self.loop() }, this.delay);
-            }
+        loop() {
+          let drop = this.piece.drop();
+          if (drop.attempt.block > 0 || (drop.last.collision && drop.last.top)) {
+            // if it can't be placed without hitting something then it's game over
+            this.playing = false;
+            this.board.over();
+          } else {
+            let self = this;
+            this.delay -= drop.cnt * 10;
+            this.piece = drop.result;
+            setTimeout(() => self.loop(), this.delay);
+          }
         }
 
         control() {
           let self = this;
           $(document).keydown(function(e) {
-            console.log(e, this, self);
-            if (!self.playing) return
+            if (!self.playing) return;
             if (e.key ==  "ArrowLeft") self.piece = self.piece.left().result;
             if (e.key ==  "ArrowRight") self.piece = self.piece.right().result;
             if (e.key ==  "ArrowDown") self.piece = self.piece.drop().result;
             if (e.key == 'z') self.piece = self.piece.rotate().result;
             if (e.key == 'x') self.piece = self.piece.rotate(true).result;
-            if (e.key == ' ') { self.piece = Tetromino.next(board); board.check(); }
+            if (!self.debug) return;
+            if (e.key == ' ') {
+              self.piece = Tetromino.next(board);
+              board.check();
+            }
             if (e.key == 'c') self.piece = self.piece.change().result;
           });
         }
@@ -294,8 +301,10 @@
           url = new URL(window.location.href),
           hparams = url.searchParams,
           params = {
+            debug : false
           };
 
+        if (hparams.has('debug')) params.debug = Boolean(hparams.get('debug'));
         if (hparams.has('x')) params.x = Number(hparams.get('x'));
         if (hparams.has('y')) params.y = Number(hparams.get('y'));
         console.log(params);
@@ -303,29 +312,10 @@
         const 
           $board = $('div.board'),
           board  = new (Function.prototype.bind.apply(Board, [null, $board, params, ])),
-          play = new Play(board);
+          play = new Play(board, params.debug);
 
         play.loop();
 
-/*
-b=board;
-p = Tetromino.next(board);
-
-p.y+=7;
-p.draw();
-
-$(document).keydown(function(e) {
-console.log(e);
-  if (e.key ==  "ArrowLeft") p = p.left().result;
-  if (e.key ==  "ArrowRight") p = p.right().result;
-  if (e.key ==  "ArrowDown") p = p.drop().result;
-  if (e.key == 'z') p = p.rotate().result;
-  if (e.key == 'x') p = p.rotate(true).result;
-  if (e.key == ' ') { p = Tetromino.next(board); b.check(); }
-  if (e.key == 'c') p = p.change().result;
-});
-
-*/
       });
     </script>
   </head>
